@@ -1,0 +1,20 @@
+
+if_gpu: 1
+device_id: 1
+model_name: "gpt3"
+n_attention_layer: 12
+vocab_size: 11361
+n_hidden_size: 512
+n_positions: 512
+max_token: 1024
+max_gen_token: 150
+position_dim: 512
+embed_dim: 512
+n_batch_size: 16
+n_epoch: 10
+n_head: 16
+n_head_dim: 32
+learning_rate: 0.00025
+resid_pdrop: 0.1
+save_per_batchs: 10000
+output_path: "/home/tione/notebook/lskong2/projects/7.GPT2/pt_12l_0_00025_AdamW_v2"
