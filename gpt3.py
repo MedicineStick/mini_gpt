@@ -28,7 +28,10 @@ class GPT3Config():
         self.resid_pdrop = config["resid_pdrop"]
         self.max_token = config["max_token"]
         self.max_gen_token = config["max_gen_token"]
+        self.if_train = config["if_train"]
         self.save_per_batchs = config["save_per_batchs"]
+        self.temperature = config["temperature"]
+        self.top_k = config["top_k"]
         
 
 class SelfAttention(nn.Module):
@@ -37,6 +40,7 @@ class SelfAttention(nn.Module):
         embed_dim:int,
         n_head:int,
         if_causal:bool,
+        if_train:bool,
         **kwargs
         ):
         super().__init__(**kwargs)
@@ -44,6 +48,7 @@ class SelfAttention(nn.Module):
         self.n_head = n_head
         self.n_head_dim = embed_dim // n_head
         self.if_causal = if_causal
+        self.if_train = if_train
         assert self.n_head_dim * n_head == self.embed_dim, "embed_dim must be divisible by num_heads"
         
         self.qheads = nn.Linear(embed_dim, self.n_head_dim * n_head)
@@ -63,7 +68,7 @@ class SelfAttention(nn.Module):
         wv = self.vheads(v).view(batch_,length_,self.n_head,self.n_head_dim).permute(0,2,1,3)
         att_score = torch.matmul(wq,wk)/ math.sqrt(self.n_head_dim) #(b,d,l,l)
 
-        if self.if_causal:
+        if self.if_causal  and self.if_train:
             causal_mask = torch.triu(torch.ones(length_, length_) * float('-inf'), diagonal=1).to(q.device)
             att_score = att_score + causal_mask[None, None, :, :]  # Add causal_mask to attention scores
 
@@ -98,12 +103,14 @@ class GPT2MLP(nn.Module):
         self.c_proj = nn.Linear(gpt3conf.n_hidden_size, gpt3conf.embed_dim)
         self.act = torch.nn.GELU()
         self.dropout = nn.Dropout(gpt3conf.resid_pdrop)
+        self.if_train = gpt3conf.if_train
 
     def forward(self, hidden_states:torch.Tensor ) -> torch.Tensor:
         hidden_states = self.c_fc(hidden_states)
         hidden_states = self.act(hidden_states)
         hidden_states = self.c_proj(hidden_states)
-        hidden_states = self.dropout(hidden_states)
+        if self.if_train:
+            hidden_states = self.dropout(hidden_states)
         return hidden_states
 
 class GPT3Block(nn.Module):
@@ -121,7 +128,8 @@ class GPT3Block(nn.Module):
         self.att_layer = SelfAttention(
             embed_dim=gpt3conf.embed_dim,
             n_head=gpt3conf.n_head,
-            if_causal=if_causal
+            if_causal=if_causal,
+            if_train = gpt3conf.if_train
             )
         self.mlp = GPT2MLP(gpt3conf)
 
@@ -154,26 +162,21 @@ class MaskedEmbedding(nn.Module):
         return masked_embedded_seq,mask
 
 class DynamicPositionalEncoding(nn.Module):
-    def __init__(self, d_model,device):
+    def __init__(self, d_model):
         super(DynamicPositionalEncoding, self).__init__()
         self.d_model = d_model
-        self.device = device
         # Precompute div_term for efficiency
-        self.div_term = torch.exp(torch.arange(0.0, d_model, 2.0) * -(math.log(10000.0) / d_model)).to(self.device)
 
     def forward(self, x):
-        """
-        Generate positional encodings dynamically based on the sequence length of x.
-        x: Tensor of shape [batch_size, seq_length, d_model]
-        """
         seq_length = x.size(1)
-        position = torch.arange(seq_length, dtype=torch.float, device=self.device).unsqueeze(1)
-        positional_encoding = torch.zeros((seq_length, self.d_model), device=self.device)
-        positional_encoding[:, 0::2] = torch.sin(position * self.div_term)
-        positional_encoding[:, 1::2] = torch.cos(position * self.div_term)
+        position = torch.arange(seq_length, dtype=x.dtype, device=x.device).unsqueeze(1)
+        positional_encoding = torch.zeros((seq_length, self.d_model), device=x.device, dtype=x.dtype)
+        div_term = torch.exp(torch.arange(0.0, self.d_model, 2.0) * -(math.log(10000.0) / self.d_model)).to(x.device).type(x.dtype)
+        positional_encoding[:, 0::2] = torch.sin(position * div_term)
+        positional_encoding[:, 1::2] = torch.cos(position * div_term)
         
         positional_encoding = positional_encoding.unsqueeze(0).expand_as(x)
-        return x + positional_encoding
+        return  positional_encoding
 
 
 class GPT3(nn.Module):
@@ -187,7 +190,7 @@ class GPT3(nn.Module):
         self.wte = MaskedEmbedding(self.gpt3conf)
         self.wpe = nn.Embedding(self.gpt3conf.n_positions,self.gpt3conf.position_dim)
         self.device = device
-        self.dpe = DynamicPositionalEncoding(self.gpt3conf.position_dim,self.device)
+        self.dpe = DynamicPositionalEncoding(self.gpt3conf.position_dim)
         self.decoder_layer = nn.ModuleList(
             [GPT3Block(gpt3conf=self.gpt3conf,layer_idx=i,if_causal=True) for i in range(0,self.gpt3conf.n_attention_layer)]
             )
@@ -204,17 +207,25 @@ class GPT3(nn.Module):
             module.if_causal = False
 
     @torch.no_grad()
-    def step(self,prompt_tensor):
+    def inference(self,prompt_tensor):
         _,l = prompt_tensor.shape
         for i in range(0,self.gpt3conf.max_gen_token):
             embedding,_ = self.wte(prompt_tensor)
             
             position_embeddings = self.dpe(embedding)
+            embedding = embedding+position_embeddings
             for module in self.decoder_layer:
-                embedding = module(embedding+position_embeddings,None)
+                embedding = module(embedding,None)
             logit = self.logits(embedding)[:,-1:,:]
-            max_indices = torch.argmax(logit,dim=-1,keepdim=False)
-            prompt_tensor = torch.cat((prompt_tensor, max_indices), dim=1)
+            logit = logit /  self.gpt3conf.temperature
+            probs = torch.nn.functional.softmax(logit, dim=-1)
+            # Apply top-k sampling
+            top_probs, top_indices = torch.topk(probs, self.gpt3conf.top_k, dim=-1)
+            top_probs = top_probs / torch.sum(top_probs, dim=-1, keepdim=True)  # Re-normalize the probabilities
+            
+            # Sample from the top k probabilities
+            next_token = torch.multinomial(top_probs.squeeze(1), num_samples=1)
+            prompt_tensor = torch.cat((prompt_tensor, next_token), dim=1)
 
         return prompt_tensor
 
@@ -244,8 +255,9 @@ class GPT3(nn.Module):
         embedding,mask = self.wte(label_tensor)
         
         position_embeddings = self.dpe(embedding)
+        embedding = embedding+position_embeddings
         for module in self.decoder_layer:
-            embedding = module(embedding+position_embeddings,mask)
+            embedding = module(embedding,mask)
         logit = self.logits(embedding)
         logits_reshaped = logit[:,:-1,:].contiguous().view(-1, logit.shape[-1])  # Shape: (batch * length, vocab_size)
         labels_reshaped = label_tensor[:,1:].contiguous().view(-1).type(dtype=torch.LongTensor).to(self.device)

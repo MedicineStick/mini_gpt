@@ -16,5 +16,8 @@ n_head: 16
 n_head_dim: 32
 learning_rate: 0.00025
 resid_pdrop: 0.1
-save_per_batchs: 10000
+save_per_batchs: 2000
+if_train: 1
+temperature: 1.0
+top_k: 15
 output_path: "/home/tione/notebook/lskong2/projects/7.GPT2/pt_12l_0_00025_AdamW_v2"
