@@ -16,22 +16,22 @@ from bbpe_tokenizer import bbpe_tokenizer
 
 def train():
 
-    global_conf = GPT3Config("/home/tione/notebook/lskong2/projects/7.GPT2/conf/gpt3_v1.yaml")
+    global_conf = GPT3Config("/home/tione/notebook/lskong2/projects/7.GPT2/conf/gpt3_v3.yaml")
     
     if global_conf.if_gpu==1:
         device = torch.device("cuda")
         torch.cuda.set_device(global_conf.device_id)
     else:
         device = torch.device("cpu")
-    model_path = "/home/tione/notebook/lskong2/projects/7.GPT2/pt_12l_0_00025_AdamW_v2/model_iter_0_batch_10000.pth"
+    model_path = "/home/tione/notebook/lskong2/projects/7.GPT2/pt_12l_0_00025_AdamW_v3/model_iter_0_batch_4000.pth"
     global_conf.if_train = False
     gpt3 = GPT3(global_conf,device)
     gpt3.load_state_dict(torch.load(model_path),False)
     gpt3.eval()
     gpt3.to(device)
 
-    bbpe = bbpe_tokenizer([],0,0)
-    bbpe.from_vocab_file('/home/tione/notebook/lskong2/projects/7.GPT2/data/vocab.final.list',11255,True)
+    bbpe = bbpe_tokenizer([],0,0,0)
+    bbpe.from_vocab_file('/home/tione/notebook/lskong2/projects/7.GPT2/data/vocab.final.list.v3',11255,True)
     prompt_list = ["The weather ",
                    "how do you", 
                    "today ",
@@ -45,7 +45,7 @@ def train():
         token_list = torch.tensor(token_list).unsqueeze(0).to(device)
         output = gpt3.inference(token_list)
 
-        b,l = output.shape
+        b,_ = output.shape
 
         for i in range(0,b):
             output_ = output[i].tolist()

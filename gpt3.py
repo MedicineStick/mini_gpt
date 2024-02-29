@@ -217,7 +217,7 @@ class GPT3(nn.Module):
             for module in self.decoder_layer:
                 embedding = module(embedding,None)
             logit = self.logits(embedding)[:,-1:,:]
-            logit = logit /  self.gpt3conf.temperature
+            logit = logit /  float(self.gpt3conf.temperature)
             probs = torch.nn.functional.softmax(logit, dim=-1)
             # Apply top-k sampling
             top_probs, top_indices = torch.topk(probs, self.gpt3conf.top_k, dim=-1)
