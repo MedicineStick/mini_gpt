@@ -141,6 +141,37 @@ class GPT3Block(nn.Module):
         x = self.ln3(x + x_mlp)
         return x
 
+class LearnedPositionalEmbedding(nn.Module):
+    def __init__(self, max_seq_len, embed_size):
+        """
+        Initialize the learned positional embedding module.
+        
+        Parameters:
+        - max_seq_len (int): The maximum length of the sequences.
+        - embed_size (int): The size of each embedding vector.
+        """
+        super(LearnedPositionalEmbedding, self).__init__()
+        self.position_embeddings = nn.Embedding(max_seq_len, embed_size)
+
+    def forward(self, x):
+        """
+        Forward pass for generating positional embeddings.
+        
+        Parameters:
+        - x (torch.Tensor): A tensor of shape (batch_size, seq_len).
+        
+        Returns:
+        - torch.Tensor: A tensor of shape (batch_size, seq_len, embed_size) containing
+          positional embeddings for each position in the sequence.
+        """
+        # Generate a sequence of positions
+        positions = torch.arange(x.size(1), device=x.device).unsqueeze(0).repeat(x.size(0), 1)
+        
+        # Retrieve the positional embeddings
+        pos_embeddings = self.position_embeddings(positions)
+        
+        return pos_embeddings
+
 class MaskedEmbedding(nn.Module):
     def __init__(
         self,
@@ -190,7 +221,7 @@ class GPT3(nn.Module):
         self.wte = MaskedEmbedding(self.gpt3conf)
         self.wpe = nn.Embedding(self.gpt3conf.n_positions,self.gpt3conf.position_dim)
         self.device = device
-        self.dpe = DynamicPositionalEncoding(self.gpt3conf.position_dim)
+        self.lpe = LearnedPositionalEmbedding(self.gpt3conf.max_token,self.gpt3conf.position_dim)
         self.decoder_layer = nn.ModuleList(
             [GPT3Block(gpt3conf=self.gpt3conf,layer_idx=i,if_causal=True) for i in range(0,self.gpt3conf.n_attention_layer)]
             )
@@ -200,7 +231,7 @@ class GPT3(nn.Module):
             out_features=self.gpt3conf.vocab_size+1
             
             )
-        self.loss = nn.CrossEntropyLoss(ignore_index=11361)
+        self.loss = nn.CrossEntropyLoss(ignore_index=gpt3conf.vocab_size) #20113
 
     def set_test(self):
         for module in self.decoder_layer:
@@ -212,11 +243,11 @@ class GPT3(nn.Module):
         for i in range(0,self.gpt3conf.max_gen_token):
             embedding,_ = self.wte(prompt_tensor)
             
-            position_embeddings = self.dpe(embedding)
+            position_embeddings = self.lpe(prompt_tensor)
             embedding = embedding+position_embeddings
             for module in self.decoder_layer:
                 embedding = module(embedding,None)
-            logit = self.logits(embedding)[:,-1:,:]
+            logit = self.logits(embedding[:,-1:,:])
             logit = logit /  float(self.gpt3conf.temperature)
             probs = torch.nn.functional.softmax(logit, dim=-1)
             # Apply top-k sampling
@@ -224,8 +255,10 @@ class GPT3(nn.Module):
             top_probs = top_probs / torch.sum(top_probs, dim=-1, keepdim=True)  # Re-normalize the probabilities
             
             # Sample from the top k probabilities
-            next_token = torch.multinomial(top_probs.squeeze(1), num_samples=1)
-            prompt_tensor = torch.cat((prompt_tensor, next_token), dim=1)
+            sampled_indices = torch.multinomial(top_probs.squeeze(), num_samples=1)
+            sampled_value = top_indices.squeeze(0)[:,sampled_indices]
+
+            prompt_tensor = torch.cat((prompt_tensor, sampled_value), dim=1)
 
         return prompt_tensor
 
@@ -254,7 +287,7 @@ class GPT3(nn.Module):
 
         embedding,mask = self.wte(label_tensor)
         
-        position_embeddings = self.dpe(embedding)
+        position_embeddings = self.lpe(label_tensor)
         embedding = embedding+position_embeddings
         for module in self.decoder_layer:
             embedding = module(embedding,mask)

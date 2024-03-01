@@ -215,6 +215,8 @@ class bbpe_tokenizer:
                 self.vocab_list.append(token)
                 self.vocab[token] = count
                 count+=1
+        self.vocab_list.append('00')
+        self.vocab_list.append('00')
 
     def encode(self,sent:str,if_to_str:bool)->list:
         output_list = []
@@ -240,6 +242,8 @@ class bbpe_tokenizer:
         return output_list
     
     def decode(self,encode_list:list[int])->str:
+        print(encode_list)
+        print(len( self.vocab_list))
         hexs = [ self.vocab_list[idx] for idx in encode_list]
         sents = self.BT._hexs_2_str(''.join(hexs))
         return sents
