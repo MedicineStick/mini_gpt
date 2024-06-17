@@ -32,6 +32,9 @@ class GPT3Config():
         self.save_per_batchs = config["save_per_batchs"]
         self.temperature = config["temperature"]
         self.top_k = config["top_k"]
+        self.pretrain_model = config["pretrain_model"]
+        self.wlist_size = config["wlist_size"]
+        self.wlist = config["wlist"]
         
 
 class SelfAttention(nn.Module):

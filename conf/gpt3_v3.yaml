@@ -21,3 +21,6 @@ if_train: 1
 temperature: 1.0
 top_k: 2  
 output_path: "/home/tione/notebook/lskong2/projects/7.GPT2/pt_12l_0_00025_AdamW_v5"
+pretrain_model : ""
+wlist : "/home/tione/notebook/lskong2/projects/7.GPT2/data/vocab.final.list.v3"
+wlist_size : 11255
