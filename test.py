@@ -24,7 +24,7 @@ def train():
         torch.cuda.set_device(global_conf.device_id)
     else:
         device = torch.device("cpu")
-    model_path = "/home/tione/notebook/lskong2/projects/7.GPT2/pt_12l_0_00025_AdamW_v4/model_iter_0_batch_22000.pth"
+    model_path = "/home/tione/notebook/lskong2/projects/7.GPT2/pt_12l_0_00025_AdamW_v5/model_iter_3_batch_42000.pth"
     global_conf.if_train = False
     gpt3 = GPT3(global_conf,device)
     gpt3.load_state_dict(torch.load(model_path),False)
