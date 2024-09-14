@@ -217,13 +217,13 @@ class GPT3(nn.Module):
     def __init__(
         self,
         gpt3conf:GPT3Config,
-        device
+        device,
         ):
         super().__init__()
         self.gpt3conf = gpt3conf
+        self.device = device
         self.wte = MaskedEmbedding(self.gpt3conf)
         self.wpe = nn.Embedding(self.gpt3conf.n_positions,self.gpt3conf.position_dim)
-        self.device = device
         self.lpe = LearnedPositionalEmbedding(self.gpt3conf.max_token,self.gpt3conf.position_dim)
         self.decoder_layer = nn.ModuleList(
             [GPT3Block(gpt3conf=self.gpt3conf,layer_idx=i,if_causal=True) for i in range(0,self.gpt3conf.n_attention_layer)]

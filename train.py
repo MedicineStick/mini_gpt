@@ -18,10 +18,10 @@ def train(name:str):
     dataset = DatasetGPT3(
         sqlite_url='sqlite:///./data/'+name+'.db'
         )
-    global_conf = GPT3Config("/home/tione/notebook/lskong2/projects/7.GPT2/conf/gpt3_v3.yaml")
+    global_conf = GPT3Config("./conf/gpt3_v3.yaml")
     
     if global_conf.if_gpu==1:
-        device = torch.device("cuda")
+        device = torch.device(global_conf.device_id)
         torch.cuda.set_device(global_conf.device_id)
     else:
         device = torch.device("cpu")
@@ -59,7 +59,7 @@ def train(name:str):
         shuffle=True,
         collate_fn=collate_fn
         )
-    log_file = open(global_conf.output_path+'/log.txt1',mode='w')
+    log_file = open(global_conf.output_path+'/log.txt',mode='w')
     #tensor = (torch.ones((10, 3000),dtype=torch.int32).to(device),)
     #flops, params = profile(gpt3, inputs=tensor)
     #print('FLOPs =', flops)
@@ -128,7 +128,7 @@ def test(name):
     print(2)
 
 if __name__ =="__main__":
-    name =  'train_corpus_v3'
+    name =  'train_corpus_c4_v2'
     """with open('./data/'+name+'.csv',mode='w', newline='') as f1:
         spamwriter = csv.writer(f1)
         corpus_lines  = [[1,2],[4,5,6,7]]
