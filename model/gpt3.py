@@ -1,7 +1,5 @@
 import torch
 import torch.nn as nn
-
-import logging
 from omegaconf import OmegaConf
 import math
 

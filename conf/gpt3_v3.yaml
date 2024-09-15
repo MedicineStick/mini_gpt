@@ -2,17 +2,17 @@
 if_gpu: 1
 device_id: 3
 model_name: "gpt3"
-n_attention_layer: 24
+n_attention_layer: 32
 vocab_size: 20833
-n_hidden_size: 768
-n_positions: 768
+n_hidden_size: 512
+n_positions: 512
 max_token: 512
 max_gen_token: 150
-position_dim: 768
-embed_dim: 768
+position_dim: 512
+embed_dim: 512
 n_batch_size: 16
 n_epoch: 10
-n_head: 24
+n_head: 16
 n_head_dim: 32
 learning_rate: 0.00025
 resid_pdrop: 0.1
@@ -20,7 +20,7 @@ save_per_batchs: 100000
 if_train: 1
 temperature: 1.0
 top_k: 2  
-output_path: "./pt/pt_24l_0_00025_AdamW_c4_v1"
+output_path: "./pt/pt_32l_0_00025_AdamW_c4_v1"
 pretrain_model : ""
 wlist : "./data/vocab.list.c4.v2"
 wlist_size : 20833
