@@ -33,54 +33,74 @@ class GPT3Config():
         self.pretrain_model = config["pretrain_model"]
         self.wlist_size = config["wlist_size"]
         self.wlist = config["wlist"]
+        self.attn_pdrop = config["attn_pdrop"]
         
 
 class SelfAttention(nn.Module):
     def __init__(
         self,
-        embed_dim:int,
+        input_dim:int,
+        output_dim:int,
         n_head:int,
+        max_token:int,
+        attn_pdrop:float,
+        resid_pdrop:float,
         if_causal:bool,
         if_train:bool,
-        **kwargs
         ):
-        super().__init__(**kwargs)
-        self.embed_dim = embed_dim
+        super().__init__()
+        self.input_dim = input_dim
+        self.output_dim = output_dim
         self.n_head = n_head
-        self.n_head_dim = embed_dim // n_head
+        self.n_head_dim = self.input_dim // n_head
         self.if_causal = if_causal
         self.if_train = if_train
-        assert self.n_head_dim * n_head == self.embed_dim, "embed_dim must be divisible by num_heads"
+        assert self.n_head_dim * n_head == self.input_dim, "input_dim must be divisible by num_heads"
         
-        self.qheads = nn.Linear(embed_dim, self.n_head_dim * n_head)
-        self.kheads = nn.Linear(embed_dim, self.n_head_dim * n_head)
-        self.vheads = nn.Linear(embed_dim, self.n_head_dim * n_head)
+        self.qheads = nn.Linear(self.input_dim, self.n_head_dim * n_head)
+        self.kheads = nn.Linear(self.input_dim, self.n_head_dim * n_head)
+        self.vheads = nn.Linear(self.input_dim, self.n_head_dim * n_head)
+        self.c_proj = nn.Linear(self.input_dim,self.output_dim)
+        self.attn_dropout = nn.Dropout(attn_pdrop)
+        self.resid_dropout = nn.Dropout(resid_pdrop)
+        self.register_buffer(
+            "bias",
+            torch.tril(torch.ones((max_token, max_token), dtype=torch.bool)).view(
+                1, 1, max_token, max_token
+            ),
+            persistent=False,
+        )
         
     
     def forward(self,
         q:torch.Tensor,
         k:torch.Tensor,
         v:torch.Tensor,
-        mask: torch.Tensor = None
+        attention_mask: torch.Tensor = None
         ):
         batch_, length_, _ = q.shape
         wq = self.qheads(q).view(batch_,length_,self.n_head,self.n_head_dim).permute(0,2,1,3)
         wk = self.kheads(k).view(batch_,length_,self.n_head,self.n_head_dim).permute(0,2,3,1)
         wv = self.vheads(v).view(batch_,length_,self.n_head,self.n_head_dim).permute(0,2,1,3)
-        att_score = torch.matmul(wq,wk)/ math.sqrt(self.n_head_dim) #(b,d,l,l)
+        attn_weights = torch.matmul(wq,wk)/ math.sqrt(self.n_head_dim) #(b,d,l,l)
 
-        if self.if_causal  and self.if_train:
-            causal_mask = torch.triu(torch.ones(length_, length_) * float('-inf'), diagonal=1).to(q.device)
-            att_score = att_score + causal_mask[None, None, :, :]  # Add causal_mask to attention scores
+        if self.if_causal:
+            causal_mask = self.bias[:, :, 0:length_, 0:length_]
+            #attn_weights = attn_weights + causal_mask[None, None, :, :]  # 
+            mask_value = torch.finfo(attn_weights.dtype).min
+            mask_value = torch.full([], mask_value, dtype=attn_weights.dtype, device=attn_weights.device)
+            attn_weights = torch.where(causal_mask, attn_weights.to(attn_weights.dtype), mask_value)
 
-        if mask is not None:
-            mask = mask[:, None, None, :]  
-            mask = mask.expand(-1, self.n_head, length_, -1)  
-            att_score += mask
+        if attention_mask is not None:
+            attention_mask = attention_mask[:, None, None, :]  
+            attention_mask = attention_mask.expand(-1, self.n_head, length_, -1)
+            attn_weights = attn_weights + attention_mask
 
-        att_score = nn.functional.softmax(att_score,dim=-1)
-        att = torch.matmul(att_score,wv).transpose(1,2).contiguous().reshape(batch_, length_, self.n_head*self.n_head_dim)
-        return att
+        att_score = nn.functional.softmax(attn_weights,dim=-1)
+        attn_output = torch.matmul(att_score,wv).transpose(1,2).contiguous().reshape(batch_, length_, self.n_head*self.n_head_dim)
+        attn_output = self.c_proj(attn_output)
+        attn_output = self.resid_dropout(attn_output)
+        return attn_output
 
 class LayerNorm(nn.Module):
     def __init__(self,normalized_shape:int,eps=1e-5, **kwargs) -> None:
@@ -123,23 +143,31 @@ class GPT3Block(nn.Module):
         **kwargs):
         super().__init__(**kwargs)
         self.layer_idx = layer_idx
-        self.ln1 = LayerNorm(gpt3conf.embed_dim)
-        self.ln2 = LayerNorm(gpt3conf.embed_dim)
-        self.ln3 = LayerNorm(gpt3conf.embed_dim)
+        self.ln1 = nn.LayerNorm(gpt3conf.embed_dim)
+        self.ln2 = nn.LayerNorm(gpt3conf.embed_dim)
+        #"""
         self.att_layer = SelfAttention(
-            embed_dim=gpt3conf.embed_dim,
+            input_dim=gpt3conf.embed_dim,
+            output_dim=gpt3conf.embed_dim,
             n_head=gpt3conf.n_head,
+            max_token = gpt3conf.max_token,
+            attn_pdrop=gpt3conf.attn_pdrop,
+            resid_pdrop=gpt3conf.resid_pdrop,
             if_causal=if_causal,
-            if_train = gpt3conf.if_train
+            if_train = gpt3conf.if_train,
             )
+        #"""
+        #self.att_layer = nn.MultiheadAttention(embed_dim=gpt3conf.embed_dim, num_heads=gpt3conf.n_head, batch_first=True)
         self.mlp = GPT2MLP(gpt3conf)
-
+        
     def forward(self,x:torch.Tensor,mask):
-        x = self.ln1(x)
-        x_att = self.att_layer(x, x, x, mask)
-        x = self.ln2(x + x_att)
-        x_mlp = self.mlp(x)
-        x = self.ln3(x + x_mlp)
+
+        res_x = self.ln1(x)
+        x =self.att_layer(res_x, res_x, res_x, mask)+x
+
+        res_x = self.ln2(x)
+        x_mlp = self.mlp(res_x)
+        x = x + x_mlp
         return x
 
 class LearnedPositionalEmbedding(nn.Module):
@@ -233,6 +261,8 @@ class GPT3(nn.Module):
             
             )
         self.loss = nn.CrossEntropyLoss(ignore_index=gpt3conf.vocab_size) #20113
+
+        self.apply(self._init_weights)
 
     def set_test(self):
         for module in self.decoder_layer:

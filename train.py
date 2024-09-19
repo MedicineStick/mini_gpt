@@ -1,6 +1,6 @@
-from dataset_gpt3 import DatasetGPT3,process_db
+from data_process.dataset_gpt3 import DatasetGPT3,process_db
 import csv
-from gpt3 import GPT3,GPT3Config
+from model.gpt3 import GPT3,GPT3Config
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -10,7 +10,7 @@ from tqdm import tqdm
 import os
 device = None
 from thop import profile
-from bbpe_tokenizer import bbpe_tokenizer
+from tokenizer.bbpe_tokenizer import bbpe_tokenizer
 
 
 
