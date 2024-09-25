@@ -24,7 +24,7 @@ def decode():
         torch.cuda.set_device(global_conf.device_id)
     else:
         device = torch.device("cpu")
-    model_path = "./pt/pt_32l_0_00025_AdamW_c4_v2/model_iter_0_batch_200000.pth"
+    model_path = "./pt/pt_32l_0_00025_AdamW_c4_v4/model_iter_0_batch_500000.pth"
     global_conf.if_train = False
     gpt3 = GPT3(global_conf,device)
     gpt3.load_state_dict(torch.load(model_path),False)
@@ -35,16 +35,15 @@ def decode():
     bbpe.from_vocab_file('./data/vocab.list.c4.v2',20833,True)
     prompt_list = ["The weather ",
                    "how do you", 
-                   "today ",
-                   "If these steps ",
-                   "For a ",
-                   "Verify that",
+                   "today I plan to",
+                   "When you are eating you should",
+                   "When you are swimming you should",
                    "outputs the",
                    ]
     for prompt in prompt_list:
         token_list = bbpe.encode(prompt,False)
         token_list = torch.tensor(token_list).unsqueeze(0).to(device)
-        output = gpt3.inference(token_list)
+        output = gpt3.inference(token_list,1)
 
         b,_ = output.shape
 

@@ -269,7 +269,9 @@ class GPT3(nn.Module):
             module.if_causal = False
 
     @torch.no_grad()
-    def inference(self,prompt_tensor):
+    def inference(self,
+                  prompt_tensor,
+                  eos_id:int = 1):
         _,l = prompt_tensor.shape
         for i in range(0,self.gpt3conf.max_gen_token):
             embedding,_ = self.wte(prompt_tensor)
@@ -288,6 +290,9 @@ class GPT3(nn.Module):
             # Sample from the top k probabilities
             sampled_indices = torch.multinomial(top_probs.squeeze(), num_samples=1)
             sampled_value = top_indices.squeeze(0)[:,sampled_indices]
+            
+            if sampled_value.item() == eos_id:
+                return prompt_tensor
 
             prompt_tensor = torch.cat((prompt_tensor, sampled_value), dim=1)
 

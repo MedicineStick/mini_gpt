@@ -21,7 +21,7 @@ save_per_batchs: 100000
 if_train: 1
 temperature: 1.0
 top_k: 2  
-output_path: "./pt/pt_32l_0_00025_AdamW_c4_v3"
-pretrain_model : ""
+output_path: "./pt/pt_32l_0_00025_AdamW_c4_v4"
+pretrain_model : "pt/pt_32l_0_00025_AdamW_c4_v3/model_iter_0_batch_300000.pth"
 wlist : "./data/vocab.list.c4.v2"
 wlist_size : 20833
