@@ -11,7 +11,7 @@ import os
 device = None
 from thop import profile
 from tokenizer.bbpe_tokenizer import bbpe_tokenizer
-
+from apex import amp
 
 
 def train(name:str):
@@ -37,6 +37,9 @@ def train(name:str):
     else:
         gpt3.load_state_dict(torch.load(global_conf.pretrain_model))
     gpt3.to(device)
+
+    
+
     bbpe = bbpe_tokenizer([],0,0,0)
     bbpe.from_vocab_file(global_conf.wlist,global_conf.wlist_size,True)
 
@@ -44,6 +47,10 @@ def train(name:str):
     #optimizer = optim.SGD(gpt3.parameters(), lr=global_conf.learning_rate, momentum=0.9, weight_decay=1e-4)
     #optimizer = torch.optim.Adam(gpt3.parameters(), lr=global_conf.learning_rate)
     optimizer = torch.optim.AdamW(gpt3.parameters(), lr=global_conf.learning_rate)
+
+    # Allow Amp to perform casts as required by the opt_level
+    gpt3, optimizer = amp.initialize(gpt3, optimizer, opt_level="O1")
+
     def collate_fn(tensor_list):
 
         max_length = max(tensor.size(0) for tensor in tensor_list)
@@ -80,8 +87,9 @@ def train(name:str):
             
 
             loss = gpt3.loss(logits_reshaped, labels_reshaped)
-            
-            loss.backward()
+            with amp.scale_loss(loss, optimizer) as scaled_loss:
+                scaled_loss.backward()
+            #loss.backward()
             optimizer.step()
             print("batch_idx {}/{}, loss{}".format(batch_idx,total_batches,loss.item()))
             log_file.write(f'Epoch [{epoch + 1}/{global_conf.n_epoch}], Batch [{batch_idx + 1}/{len(dataloader)}], Loss: {loss.item():.4f} '+'\n')

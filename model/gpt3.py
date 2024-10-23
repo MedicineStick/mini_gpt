@@ -2,6 +2,12 @@ import torch
 import torch.nn as nn
 from omegaconf import OmegaConf
 import math
+from model.attn import SelfAttention, GQAttention
+
+
+ # https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/modeling_llama.py
+from transformers.models.llama import modeling_llama
+
 
 class GPT3Config():
     def __init__(self,config_file:str):
@@ -13,9 +19,6 @@ class GPT3Config():
         self.n_attention_layer = config["n_attention_layer"]
         self.vocab_size = config["vocab_size"]
         self.n_hidden_size = config["n_hidden_size"]
-        self.position_dim = config["position_dim"]
-        self.n_positions = config["n_positions"]
-        self.embed_dim = config["embed_dim"]
         self.device_id = config["device_id"]
         self.n_batch_size = config["n_batch_size"]
         self.n_epoch = config["n_epoch"]
@@ -34,73 +37,20 @@ class GPT3Config():
         self.wlist_size = config["wlist_size"]
         self.wlist = config["wlist"]
         self.attn_pdrop = config["attn_pdrop"]
-        
 
-class SelfAttention(nn.Module):
-    def __init__(
-        self,
-        input_dim:int,
-        output_dim:int,
-        n_head:int,
-        max_token:int,
-        attn_pdrop:float,
-        resid_pdrop:float,
-        if_causal:bool,
-        if_train:bool,
-        ):
+class RMSNorm(nn.Module):
+    def __init__(self, hidden_size, eps=1e-6):
         super().__init__()
-        self.input_dim = input_dim
-        self.output_dim = output_dim
-        self.n_head = n_head
-        self.n_head_dim = self.input_dim // n_head
-        self.if_causal = if_causal
-        self.if_train = if_train
-        assert self.n_head_dim * n_head == self.input_dim, "input_dim must be divisible by num_heads"
-        
-        self.qheads = nn.Linear(self.input_dim, self.n_head_dim * n_head)
-        self.kheads = nn.Linear(self.input_dim, self.n_head_dim * n_head)
-        self.vheads = nn.Linear(self.input_dim, self.n_head_dim * n_head)
-        self.c_proj = nn.Linear(self.input_dim,self.output_dim)
-        self.attn_dropout = nn.Dropout(attn_pdrop)
-        self.resid_dropout = nn.Dropout(resid_pdrop)
-        self.register_buffer(
-            "bias",
-            torch.tril(torch.ones((max_token, max_token), dtype=torch.bool)).view(
-                1, 1, max_token, max_token
-            ),
-            persistent=False,
-        )
-        
-    
-    def forward(self,
-        q:torch.Tensor,
-        k:torch.Tensor,
-        v:torch.Tensor,
-        attention_mask: torch.Tensor = None
-        ):
-        batch_, length_, _ = q.shape
-        wq = self.qheads(q).view(batch_,length_,self.n_head,self.n_head_dim).permute(0,2,1,3)
-        wk = self.kheads(k).view(batch_,length_,self.n_head,self.n_head_dim).permute(0,2,3,1)
-        wv = self.vheads(v).view(batch_,length_,self.n_head,self.n_head_dim).permute(0,2,1,3)
-        attn_weights = torch.matmul(wq,wk)/ math.sqrt(self.n_head_dim) #(b,d,l,l)
+        self.weight = nn.Parameter(torch.ones(hidden_size))
+        self.variance_epsilon = eps
 
-        if self.if_causal:
-            causal_mask = self.bias[:, :, 0:length_, 0:length_]
-            #attn_weights = attn_weights + causal_mask[None, None, :, :]  # 
-            mask_value = torch.finfo(attn_weights.dtype).min
-            mask_value = torch.full([], mask_value, dtype=attn_weights.dtype, device=attn_weights.device)
-            attn_weights = torch.where(causal_mask, attn_weights.to(attn_weights.dtype), mask_value)
+    def forward(self, hidden_states):
+        input_dtype = hidden_states.dtype
+        hidden_states = hidden_states.to(torch.float32)
+        variance = hidden_states.pow(2).mean(-1, keepdim=True)
+        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
+        return self.weight * hidden_states.to(input_dtype)
 
-        if attention_mask is not None:
-            attention_mask = attention_mask[:, None, None, :]  
-            attention_mask = attention_mask.expand(-1, self.n_head, length_, -1)
-            attn_weights = attn_weights + attention_mask
-
-        att_score = nn.functional.softmax(attn_weights,dim=-1)
-        attn_output = torch.matmul(att_score,wv).transpose(1,2).contiguous().reshape(batch_, length_, self.n_head*self.n_head_dim)
-        attn_output = self.c_proj(attn_output)
-        attn_output = self.resid_dropout(attn_output)
-        return attn_output
 
 class LayerNorm(nn.Module):
     def __init__(self,normalized_shape:int,eps=1e-5, **kwargs) -> None:
@@ -120,8 +70,8 @@ class LayerNorm(nn.Module):
 class GPT2MLP(nn.Module):
     def __init__(self, gpt3conf:GPT3Config):
         super().__init__()
-        self.c_fc = nn.Linear(gpt3conf.embed_dim, gpt3conf.n_hidden_size)
-        self.c_proj = nn.Linear(gpt3conf.n_hidden_size, gpt3conf.embed_dim)
+        self.c_fc = nn.Linear(gpt3conf.n_hidden_size, gpt3conf.n_hidden_size)
+        self.c_proj = nn.Linear(gpt3conf.n_hidden_size, gpt3conf.n_hidden_size)
         self.act = torch.nn.GELU()
         self.dropout = nn.Dropout(gpt3conf.resid_pdrop)
         self.if_train = gpt3conf.if_train
@@ -143,12 +93,12 @@ class GPT3Block(nn.Module):
         **kwargs):
         super().__init__(**kwargs)
         self.layer_idx = layer_idx
-        self.ln1 = nn.LayerNorm(gpt3conf.embed_dim)
-        self.ln2 = nn.LayerNorm(gpt3conf.embed_dim)
+        self.ln1 = RMSNorm(gpt3conf.n_hidden_size)
+        self.ln2 = RMSNorm(gpt3conf.n_hidden_size)
         #"""
-        self.att_layer = SelfAttention(
-            input_dim=gpt3conf.embed_dim,
-            output_dim=gpt3conf.embed_dim,
+        self.att_layer = GQAttention(
+            input_dim=gpt3conf.n_hidden_size,
+            output_dim=gpt3conf.n_hidden_size,
             n_head=gpt3conf.n_head,
             max_token = gpt3conf.max_token,
             attn_pdrop=gpt3conf.attn_pdrop,
@@ -157,7 +107,7 @@ class GPT3Block(nn.Module):
             if_train = gpt3conf.if_train,
             )
         #"""
-        #self.att_layer = nn.MultiheadAttention(embed_dim=gpt3conf.embed_dim, num_heads=gpt3conf.n_head, batch_first=True)
+        #self.att_layer = nn.MultiheadAttention(n_hidden_size=gpt3conf.n_hidden_size, num_heads=gpt3conf.n_head, batch_first=True)
         self.mlp = GPT2MLP(gpt3conf)
         
     def forward(self,x:torch.Tensor,mask):
@@ -211,13 +161,13 @@ class MaskedEmbedding(nn.Module):
         self.mask_idx = gpt3conf.vocab_size
         self.eb = nn.Embedding(
             gpt3conf.vocab_size+1,
-            gpt3conf.embed_dim,
+            gpt3conf.n_hidden_size,
             padding_idx=self.mask_idx
             )
 
     def forward(self,input_seq:torch.tensor):
         masked_embedded_seq = self.eb(input_seq)
-        mask = torch.where(input_seq != self.mask_idx, torch.tensor(0), float('-inf'))
+        mask = torch.where(input_seq != self.mask_idx, True, False)
         #mask = (input_seq!=self.mask_idx)
         return masked_embedded_seq,mask
 
@@ -249,14 +199,14 @@ class GPT3(nn.Module):
         self.gpt3conf = gpt3conf
         self.device = device
         self.wte = MaskedEmbedding(self.gpt3conf)
-        self.wpe = nn.Embedding(self.gpt3conf.n_positions,self.gpt3conf.position_dim)
-        self.lpe = LearnedPositionalEmbedding(self.gpt3conf.max_token,self.gpt3conf.position_dim)
+        self.wpe = nn.Embedding(self.gpt3conf.max_token,self.gpt3conf.n_hidden_size)
+        self.lpe = LearnedPositionalEmbedding(self.gpt3conf.max_token,self.gpt3conf.n_hidden_size)
         self.decoder_layer = nn.ModuleList(
             [GPT3Block(gpt3conf=self.gpt3conf,layer_idx=i,if_causal=True) for i in range(0,self.gpt3conf.n_attention_layer)]
             )
         self.logits = nn.Linear(
 
-            in_features=self.gpt3conf.embed_dim,
+            in_features=self.gpt3conf.n_hidden_size,
             out_features=self.gpt3conf.vocab_size+1
             
             )
