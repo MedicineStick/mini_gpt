@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from omegaconf import OmegaConf
 import math
-from model.attn import SelfAttention, GQAttention
+from model.attn import SelfAttention, SDPAttention,SelfAttention2
 
 
  # https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/modeling_llama.py
@@ -96,7 +96,7 @@ class GPT3Block(nn.Module):
         self.ln1 = RMSNorm(gpt3conf.n_hidden_size)
         self.ln2 = RMSNorm(gpt3conf.n_hidden_size)
         #"""
-        self.att_layer = GQAttention(
+        self.att_layer = SDPAttention(
             input_dim=gpt3conf.n_hidden_size,
             output_dim=gpt3conf.n_hidden_size,
             n_head=gpt3conf.n_head,

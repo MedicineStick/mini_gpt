@@ -18,13 +18,13 @@ from tokenizer.bbpe_tokenizer import bbpe_tokenizer
 def decode():
 
     global_conf = GPT3Config("./conf/gpt3_v3.yaml")
-    
+    test_gpu = 2
     if global_conf.if_gpu==1:
         device = torch.device("cuda")
-        torch.cuda.set_device(global_conf.device_id)
+        torch.cuda.set_device(test_gpu)
     else:
         device = torch.device("cpu")
-    model_path = "./pt/pt_32l_0_00025_AdamW_c4_v4/model_iter_0_batch_500000.pth"
+    model_path = "./pt/pt_32l_0_00025_AdamW_c4_v7/model_iter_0_batch_3000.pth"
     global_conf.if_train = False
     gpt3 = GPT3(global_conf,device)
     gpt3.load_state_dict(torch.load(model_path),False)
