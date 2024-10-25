@@ -96,7 +96,7 @@ class GPT3Block(nn.Module):
         self.ln1 = RMSNorm(gpt3conf.n_hidden_size)
         self.ln2 = RMSNorm(gpt3conf.n_hidden_size)
         #"""
-        self.att_layer = SDPAttention(
+        self.att_layer = SelfAttention2(
             input_dim=gpt3conf.n_hidden_size,
             output_dim=gpt3conf.n_hidden_size,
             n_head=gpt3conf.n_head,
@@ -168,7 +168,6 @@ class MaskedEmbedding(nn.Module):
     def forward(self,input_seq:torch.tensor):
         masked_embedded_seq = self.eb(input_seq)
         mask = torch.where(input_seq != self.mask_idx, True, False)
-        #mask = (input_seq!=self.mask_idx)
         return masked_embedded_seq,mask
 
 class DynamicPositionalEncoding(nn.Module):

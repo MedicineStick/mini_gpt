@@ -2,7 +2,9 @@ import torch
 import torch.nn as nn
 import math
 from  torch.nn.functional import multi_head_attention_forward,scaled_dot_product_attention
-# from xformers.ops import memory_efficient_attention
+
+
+from xformers.ops import memory_efficient_attention
 # https://github.com/pytorch/pytorch/issues/96099
         
 
@@ -13,7 +15,8 @@ def generate_causal_padding_mask(
             length_:int,
             min_val:torch.Tensor,
             if_bool:bool,
-            mask_dtype:torch.dtype
+            mask_dtype:torch.dtype,
+            scale:float = 1.0
         )->torch.Tensor:
         # min_val : https://github.com/pytorch/pytorch/issues/103749
         padding_mask_expanded = padding_mask.unsqueeze(1)  # B,1,L
@@ -25,7 +28,7 @@ def generate_causal_padding_mask(
         else:
             attention_mask = attention_mask & causal_mask_sliced
             attention_mask = torch.where(attention_mask==True,0.0,min_val)
-            return attention_mask.to(mask_dtype)
+            return attention_mask.to(mask_dtype) * scale
         
 
 
@@ -143,20 +146,19 @@ class SelfAttention2(nn.Module):
 
         
         if self.if_train:
+            mask_value = torch.finfo(attn_weights.dtype).min
             attention_mask = generate_causal_padding_mask(
                 padding_mask=attention_mask,
                 causal_mask=self.bias,
                 head_=self.n_head,
                 length_=length_,
-                min_val=torch.finfo(attn_weights.dtype).min,
-                if_bool=False,
+                min_val=mask_value,
+                if_bool=True,
                 mask_dtype=attn_weights.dtype
                 )
-            expanded_mask = attention_mask.unsqueeze(0).unsqueeze(0)
             # https://github.com/pytorch/pytorch/issues/103749
-            #mask_value = torch.finfo(attn_weights.dtype).min
-            #attn_weights = attn_weights.masked_fill(~expanded_mask, mask_value)
-            attn_weights = attn_weights+expanded_mask
+            attn_weights = attn_weights.masked_fill(~attention_mask, mask_value)
+            #attn_weights = attn_weights+attention_mask
 
 
         att_score = nn.functional.softmax(attn_weights,dim=-1)
@@ -213,20 +215,21 @@ class SDPAttention(nn.Module):
         wk = self.kheads(k).view(batch_,length_,self.n_head,self.n_head_dim).permute(0,2,1,3)
         wv = self.vheads(v).view(batch_,length_,self.n_head,self.n_head_dim).permute(0,2,1,3)
         if self.if_train:
-            attention_mask = generate_causal_padding_mask(
+            attention_mask_new = generate_causal_padding_mask(
                 padding_mask=attention_mask,
                 causal_mask=self.bias,
                 head_=self.n_head,
                 length_=length_,
                 min_val=torch.finfo(wq.dtype).min,
                 if_bool=False,
-                mask_dtype=wq.dtype
+                mask_dtype=wq.dtype,
+                scale= 0.00001
                 )
         attn_output = scaled_dot_product_attention(
             query=wq,
             key=wk,
             value=wv,
-            attn_mask=attention_mask,
+            attn_mask=attention_mask_new,
             dropout_p=self.attn_pdrop,
             is_causal=False
             )
