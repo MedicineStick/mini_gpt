@@ -1,17 +1,10 @@
-from data_process.dataset_gpt3 import DatasetGPT3,process_db
-import csv
+
 from model.gpt3 import GPT3,GPT3Config
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader,Dataset
-from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
-import os
 device = None
-from thop import profile
 from datasets import Dataset as Datasets
-from collections import Counter, defaultdict
+from collections import Counter
 from tokenizer.bbpe_tokenizer import bbpe_tokenizer
 
 
@@ -24,7 +17,7 @@ def decode():
         torch.cuda.set_device(test_gpu)
     else:
         device = torch.device("cpu")
-    model_path = "./pt/pt_32l_0_00025_AdamW_c4_v8/model_iter_0_batch_4000.pth"
+    model_path = "./pt/pt_32l_0_00025_AdamW_c4_v9/model_iter_0_batch_12000.pth"
     global_conf.if_train = False
     gpt3 = GPT3(global_conf,device)
     gpt3.load_state_dict(torch.load(model_path),False)
@@ -34,11 +27,13 @@ def decode():
     bbpe = bbpe_tokenizer([],0,0,0)
     bbpe.from_vocab_file('./data/vocab.list.c4.v2',20833,True)
     prompt_list = ["The weather ",
-                   "how do you", 
-                   "today I plan to",
-                   "When you are eating you should",
-                   "When you are swimming you should",
-                   "outputs the",
+                   "How do you ", 
+                   "Today I plan to ",
+                   "When you are eating you should ",
+                   "When you are swimming you should ",
+                   "Output the ",
+                   "I want to ",
+                   "I am going to "
                    ]
     for prompt in prompt_list:
         token_list = bbpe.encode(prompt,False)

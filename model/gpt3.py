@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from omegaconf import OmegaConf
 import math
-from model.attn import SelfAttention, SDPAttention,SelfAttention2
+from model.attn import  SDPAttention,SelfAttention2
 
 
  # https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/modeling_llama.py
@@ -37,6 +37,9 @@ class GPT3Config():
         self.wlist_size = config["wlist_size"]
         self.wlist = config["wlist"]
         self.attn_pdrop = config["attn_pdrop"]
+        self.n_intermediate_size = config["n_intermediate_size"]
+        self.mlp_bias = config["mlp_bias"]
+        self.rms_norm_eps   = config["rms_norm_eps"]
 
 class RMSNorm(nn.Module):
     def __init__(self, hidden_size, eps=1e-6):
@@ -67,22 +70,22 @@ class LayerNorm(nn.Module):
         normalized_tensor = (tensor_in - mean) / (std + self.eps)
         return self.a_2 * normalized_tensor + self.b_2
 
-class GPT2MLP(nn.Module):
+class GPT3MLP(nn.Module):
     def __init__(self, gpt3conf:GPT3Config):
         super().__init__()
-        self.c_fc = nn.Linear(gpt3conf.n_hidden_size, gpt3conf.n_hidden_size)
-        self.c_proj = nn.Linear(gpt3conf.n_hidden_size, gpt3conf.n_hidden_size)
-        self.act = torch.nn.GELU()
-        self.dropout = nn.Dropout(gpt3conf.resid_pdrop)
-        self.if_train = gpt3conf.if_train
 
-    def forward(self, hidden_states:torch.Tensor ) -> torch.Tensor:
-        hidden_states = self.c_fc(hidden_states)
-        hidden_states = self.act(hidden_states)
-        hidden_states = self.c_proj(hidden_states)
-        if self.if_train:
-            hidden_states = self.dropout(hidden_states)
-        return hidden_states
+        self.hidden_size = gpt3conf.n_hidden_size
+        self.n_intermediate_size = gpt3conf.n_intermediate_size
+        self.gate_proj = nn.Linear(self.hidden_size, self.n_intermediate_size, bias=gpt3conf.mlp_bias)
+        self.up_proj = nn.Linear(self.hidden_size, self.n_intermediate_size, bias=gpt3conf.mlp_bias)
+        self.down_proj = nn.Linear(self.n_intermediate_size, self.hidden_size, bias=gpt3conf.mlp_bias)
+        self.act_fn = nn.SiLU()
+
+
+
+    def forward(self, x:torch.Tensor ) -> torch.Tensor:
+        down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
+        return down_proj
 
 class GPT3Block(nn.Module):
     def __init__(
@@ -93,10 +96,10 @@ class GPT3Block(nn.Module):
         **kwargs):
         super().__init__(**kwargs)
         self.layer_idx = layer_idx
-        self.ln1 = RMSNorm(gpt3conf.n_hidden_size)
-        self.ln2 = RMSNorm(gpt3conf.n_hidden_size)
+        self.ln1 = RMSNorm(gpt3conf.n_hidden_size,eps=gpt3conf.rms_norm_eps)
+        self.ln2 = RMSNorm(gpt3conf.n_hidden_size,eps=gpt3conf.rms_norm_eps)
         #"""
-        self.att_layer = SelfAttention2(
+        self.att_layer = SDPAttention(
             input_dim=gpt3conf.n_hidden_size,
             output_dim=gpt3conf.n_hidden_size,
             n_head=gpt3conf.n_head,
@@ -108,16 +111,20 @@ class GPT3Block(nn.Module):
             )
         #"""
         #self.att_layer = nn.MultiheadAttention(n_hidden_size=gpt3conf.n_hidden_size, num_heads=gpt3conf.n_head, batch_first=True)
-        self.mlp = GPT2MLP(gpt3conf)
+        self.mlp = GPT3MLP(gpt3conf)
         
     def forward(self,x:torch.Tensor,mask):
 
+        residual = x
         res_x = self.ln1(x)
-        x =self.att_layer(res_x, res_x, res_x, mask)+x
+        x =self.att_layer(res_x, res_x, res_x, mask)
 
-        res_x = self.ln2(x)
-        x_mlp = self.mlp(res_x)
-        x = x + x_mlp
+        x = residual + x
+        residual = x
+
+        x = self.ln2(x)
+        x = self.mlp(x)
+        x = residual + x
         return x
 
 class LearnedPositionalEmbedding(nn.Module):
@@ -198,11 +205,16 @@ class GPT3(nn.Module):
         self.gpt3conf = gpt3conf
         self.device = device
         self.wte = MaskedEmbedding(self.gpt3conf)
-        self.wpe = nn.Embedding(self.gpt3conf.max_token,self.gpt3conf.n_hidden_size)
+        self.wpe = nn.Embedding(
+            num_embeddings=self.gpt3conf.vocab_size+1,
+            embedding_dim=self.gpt3conf.n_hidden_size,
+            padding_idx=self.gpt3conf.vocab_size
+            )
         self.lpe = LearnedPositionalEmbedding(self.gpt3conf.max_token,self.gpt3conf.n_hidden_size)
         self.decoder_layer = nn.ModuleList(
             [GPT3Block(gpt3conf=self.gpt3conf,layer_idx=i,if_causal=True) for i in range(0,self.gpt3conf.n_attention_layer)]
             )
+        self.norm = RMSNorm(self.gpt3conf.n_hidden_size, eps=self.gpt3conf.rms_norm_eps)
         self.logits = nn.Linear(
 
             in_features=self.gpt3conf.n_hidden_size,
@@ -276,6 +288,7 @@ class GPT3(nn.Module):
         embedding = embedding+position_embeddings
         for module in self.decoder_layer:
             embedding = module(embedding,mask)
+        embedding = self.norm(embedding)
         logit = self.logits(embedding)
         logits_reshaped = logit[:,:-1,:].contiguous().view(-1, logit.shape[-1])  # Shape: (batch * length, vocab_size)
         labels_reshaped = label_tensor[:,1:].contiguous().view(-1).type(dtype=torch.LongTensor).to(self.device)

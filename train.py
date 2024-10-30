@@ -49,7 +49,7 @@ def train(name:str):
     optimizer = torch.optim.AdamW(gpt3.parameters(), lr=global_conf.learning_rate)
 
     # Allow Amp to perform casts as required by the opt_level
-    # gpt3, optimizer = amp.initialize(gpt3, optimizer, opt_level="O1")
+    gpt3, optimizer = amp.initialize(gpt3, optimizer, opt_level="O1")
 
     def collate_fn(tensor_list):
 
@@ -87,9 +87,9 @@ def train(name:str):
             
 
             loss = gpt3.loss(logits_reshaped, labels_reshaped)
-            #with amp.scale_loss(loss, optimizer) as scaled_loss:
-            #    scaled_loss.backward()
-            loss.backward()
+            with amp.scale_loss(loss, optimizer) as scaled_loss:
+                scaled_loss.backward()
+            #loss.backward()
             optimizer.step()
             print("batch_idx {}/{}, loss{}".format(batch_idx,total_batches,loss.item()))
             log_file.write(f'Epoch [{epoch + 1}/{global_conf.n_epoch}], Batch [{batch_idx + 1}/{len(dataloader)}], Loss: {loss.item():.4f} '+'\n')
