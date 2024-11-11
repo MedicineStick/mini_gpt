@@ -40,6 +40,8 @@ class GPT3Config():
         self.n_intermediate_size = config["n_intermediate_size"]
         self.mlp_bias = config["mlp_bias"]
         self.rms_norm_eps   = config["rms_norm_eps"]
+        self.if_amp = bool(config["if_amp"])
+        self.data_set_name = config["data_set_name"]
 
 class RMSNorm(nn.Module):
     def __init__(self, hidden_size, eps=1e-6):
@@ -202,6 +204,7 @@ class GPT3(nn.Module):
         device,
         ):
         super().__init__()
+        print(f"initialize GPT3 model on gpu {device}...")
         self.gpt3conf = gpt3conf
         self.device = device
         self.wte = MaskedEmbedding(self.gpt3conf)
@@ -292,9 +295,9 @@ class GPT3(nn.Module):
         logit = self.logits(embedding)
         logits_reshaped = logit[:,:-1,:].contiguous().view(-1, logit.shape[-1])  # Shape: (batch * length, vocab_size)
         labels_reshaped = label_tensor[:,1:].contiguous().view(-1).type(dtype=torch.LongTensor).to(self.device)
-        
+        loss = self.loss(logits_reshaped, labels_reshaped)
 
-        return logits_reshaped,labels_reshaped
+        return loss
 
 
 

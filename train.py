@@ -32,6 +32,8 @@ def train(name:str):
         os.makedirs(global_conf.output_path)
     
     gpt3 = GPT3(global_conf,device)
+    gpt3 = nn.DataParallel(gpt3)
+
     if global_conf.pretrain_model == "":
         pass
     else:
@@ -76,7 +78,7 @@ def train(name:str):
         for batch_idx, data in enumerate(dataloader):
             data = data.to(device)
             optimizer.zero_grad()
-            logits_reshaped,labels_reshaped = gpt3(data)
+            loss = gpt3(data)
             
             """label = data[0].cpu().tolist()
             logit = torch.argmax(logits_reshaped,dim=-1).cpu().tolist()
@@ -84,9 +86,7 @@ def train(name:str):
             labels = bbpe.decode(label)
             print(preds)
             print(labels) """
-            
 
-            loss = gpt3.loss(logits_reshaped, labels_reshaped)
             with amp.scale_loss(loss, optimizer) as scaled_loss:
                 scaled_loss.backward()
             #loss.backward()
