@@ -17,23 +17,21 @@ def decode():
         torch.cuda.set_device(test_gpu)
     else:
         device = torch.device("cpu")
-    model_path = "./pt/pt_32l_0_00025_AdamW_c4_v10/model_iter_epoch_0_batch_4000.pth"
+    model_path = "./pt/pt_32l_0_00025_AdamW_c4_v10/model_iter_epoch_0_batch_26000.pth"
     global_conf.if_train = False
-    gpt3 = GPT3(global_conf,device)
+    gpt3 = GPT3(global_conf,test_gpu)
     gpt3.load_state_dict(torch.load(model_path),False)
     gpt3.eval()
     gpt3.to(device)
 
     bbpe = bbpe_tokenizer([],0,0,0)
-    bbpe.from_vocab_file('./data/vocab.list.c4.v2',20833,True)
+    bbpe.from_vocab_file('./vob/vocab.list.c4.v2',20833,True)
     prompt_list = ["The weather ",
-                   "How do you ", 
-                   "Today I plan to ",
-                   "When you are eating you should ",
-                   "When you are swimming you should ",
-                   "Output the ",
-                   "I want to ",
-                   "I am going to "
+                   "Jobs ", 
+                   "Today  ",
+                   "Warfare",
+                   "Long bow ",
+                   "Food "
                    ]
     for prompt in prompt_list:
         token_list = bbpe.encode(prompt,False)

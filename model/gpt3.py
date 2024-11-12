@@ -248,6 +248,7 @@ class GPT3(nn.Module):
             embedding = embedding+position_embeddings
             for module in self.decoder_layer:
                 embedding = module(embedding,None)
+            embedding = self.norm(embedding)
             logit = self.logits(embedding[:,-1:,:])
             logit = logit /  float(self.gpt3conf.temperature)
             probs = torch.nn.functional.softmax(logit, dim=-1)

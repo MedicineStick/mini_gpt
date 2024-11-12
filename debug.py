@@ -142,8 +142,24 @@ def test_shape():
 
     exit(0)
 
-if __name__ == "__main__":
+def check_vob():
 
+    vob = "vob/vocab.list.c4.v2"
+    f = open(vob,mode='r',encoding='utf8')
+    vob_set = set()
+    lines =f.readlines()
+    f.close()
+
+    for line in lines:
+        line = line.strip()
+        if line in vob_set:
+            print(line)
+        else:
+            vob_set.add(line)
+    exit(0)
+
+if __name__ == "__main__":
+    check_vob()
     test_shape()
     test_tensor()
     name = "train_corpus_c4_v2"

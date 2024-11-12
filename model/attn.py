@@ -106,7 +106,8 @@ class SelfAttention2(nn.Module):
         att_score = nn.functional.softmax(attn_weights,dim=-1)
         attn_output = torch.matmul(att_score,wv).transpose(1,2).contiguous().reshape(batch_, length_, self.n_head*self.n_head_dim)
         attn_output = self.c_proj(attn_output)
-        attn_output = self.resid_dropout(attn_output)
+        if self.if_train:
+            attn_output = self.resid_dropout(attn_output)
         return attn_output
 
 
@@ -179,6 +180,7 @@ class SDPAttention(nn.Module):
         attn_output = attn_output.transpose(1, 2).contiguous()
         attn_output = attn_output.view(batch_, length_, -1)
         attn_output = self.c_proj(attn_output)
-        attn_output = self.resid_dropout(attn_output)
+        if self.if_train:
+            attn_output = self.resid_dropout(attn_output)
         return attn_output
 
