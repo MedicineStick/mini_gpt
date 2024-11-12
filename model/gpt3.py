@@ -102,7 +102,7 @@ class GPT3Block(nn.Module):
         self.ln1 = RMSNorm(gpt3conf.n_hidden_size,eps=gpt3conf.rms_norm_eps)
         self.ln2 = RMSNorm(gpt3conf.n_hidden_size,eps=gpt3conf.rms_norm_eps)
         #"""
-        self.att_layer = SDPAttention(
+        self.att_layer = SelfAttention2(
             input_dim=gpt3conf.n_hidden_size,
             output_dim=gpt3conf.n_hidden_size,
             n_head=gpt3conf.n_head,

@@ -17,7 +17,6 @@ def generate_causal_padding_mask(
             min_val:torch.Tensor,
             if_bool:bool,
             mask_dtype:torch.dtype,
-            scale:float = 1.0
         )->torch.Tensor:
         # min_val : https://github.com/pytorch/pytorch/issues/103749
         padding_mask_expanded = padding_mask.unsqueeze(1)  # B,1,L
@@ -28,7 +27,7 @@ def generate_causal_padding_mask(
             return attention_mask & causal_mask_sliced
         else:
             attention_mask = attention_mask & causal_mask_sliced
-            attention_mask = (1.0 - attention_mask.to(mask_dtype)) * scale
+            attention_mask = (1.0 - attention_mask.to(mask_dtype)) * min_val
             return attention_mask
 
             """
@@ -89,7 +88,7 @@ class SelfAttention2(nn.Module):
 
         
         if self.if_train:
-            mask_value = torch.finfo(attn_weights.dtype).min
+            mask_value = torch.finfo(attn_weights.dtype).min/2
             attention_mask = generate_causal_padding_mask(
                 padding_mask=attention_mask,
                 causal_mask=self.bias,
@@ -98,7 +97,6 @@ class SelfAttention2(nn.Module):
                 min_val=mask_value,
                 if_bool=False,
                 mask_dtype=attn_weights.dtype,
-                scale= -10000,
                 )
             # https://github.com/pytorch/pytorch/issues/103749
             #attn_weights = attn_weights.masked_fill(~attention_mask, mask_value)
@@ -168,7 +166,6 @@ class SDPAttention(nn.Module):
                 min_val=torch.finfo(wq.dtype).min,
                 if_bool=True,
                 mask_dtype=wq.dtype,
-                scale= -10000
                 )
         attn_output = scaled_dot_product_attention(
             query=wq,

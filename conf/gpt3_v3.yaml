@@ -2,7 +2,7 @@
 if_gpu: 1
 if_amp: 1
 data_set_name : "train_corpus_c4_v2"
-device_id: [6]
+device_id: [6,7]
 model_name: "gpt3"
 n_attention_layer: 32
 rms_norm_eps : 1e-6
@@ -14,7 +14,7 @@ mlp_bias : False
 vocab_size: 20833
 max_token: 512
 max_gen_token: 150
-n_batch_size: 36
+n_batch_size: 24
 n_epoch: 10
 learning_rate: 0.0005
 resid_pdrop: 0.1

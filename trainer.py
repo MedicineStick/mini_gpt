@@ -249,6 +249,7 @@ if __name__  == "__main__":
     world_size = len(global_conf.device_id)
 
     if world_size>1:
+        #global_conf.n_batch_size = world_size * global_conf.n_batch_size
         MP.spawn(train_multi_gpus,args=(world_size,global_conf,logger,),nprocs=world_size)
     elif world_size ==1:
         train_single_gpu(global_conf.device_id[0],global_conf,logger)
