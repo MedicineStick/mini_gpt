@@ -42,6 +42,7 @@ class GPT3Config():
         self.rms_norm_eps   = config["rms_norm_eps"]
         self.if_amp = bool(config["if_amp"])
         self.data_set_name = config["data_set_name"]
+        self.log_file = config["log_file"]
 
 class RMSNorm(nn.Module):
     def __init__(self, hidden_size, eps=1e-6):
@@ -201,12 +202,15 @@ class GPT3(nn.Module):
     def __init__(
         self,
         gpt3conf:GPT3Config,
-        device,
+        gpu_id,
         ):
         super().__init__()
-        print(f"initialize GPT3 model on gpu {device}...")
+        if gpt3conf.if_gpu==1:
+            self.device = torch.device(gpu_id)
+        else:
+            self.device = torch.device("cpu")
+        print(f"initialize GPT3 model on gpu {gpu_id}...")
         self.gpt3conf = gpt3conf
-        self.device = device
         self.wte = MaskedEmbedding(self.gpt3conf)
         self.wpe = nn.Embedding(
             num_embeddings=self.gpt3conf.vocab_size+1,

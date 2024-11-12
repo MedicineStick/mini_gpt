@@ -2,7 +2,7 @@
 if_gpu: 1
 if_amp: 1
 data_set_name : "train_corpus_c4_v2"
-device_id: [6,7]
+device_id: [6]
 model_name: "gpt3"
 n_attention_layer: 32
 rms_norm_eps : 1e-6
@@ -27,3 +27,4 @@ output_path: "./pt/pt_32l_0_00025_AdamW_c4_v10"
 pretrain_model : ""
 wlist : "./data/vocab.list.c4.v2"
 wlist_size : 20833
+log_file : "./logs/train.log"
