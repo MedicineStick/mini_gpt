@@ -14,7 +14,7 @@ mlp_bias : False
 vocab_size: 20833
 max_token: 512
 max_gen_token: 150
-n_batch_size: 24
+n_batch_size: 32
 n_epoch: 10
 learning_rate: 0.0005
 resid_pdrop: 0.1
@@ -23,7 +23,7 @@ save_per_batchs: 2000
 if_train: 1
 temperature: 0.75
 top_k: 8  
-output_path: "./pt/pt_32l_0_00025_AdamW_c4_v10"
+output_path: "./pt/pt_32l_0_00025_AdamW_c4_v12"
 pretrain_model : ""
 wlist : "./data/vocab.list.c4.v2"
 wlist_size : 20833

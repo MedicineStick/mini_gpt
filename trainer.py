@@ -82,7 +82,7 @@ def get_train_objs(
     if gpt3conf.pretrain_model == "":
         pass
     else:
-        gpt3.load_state_dict(torch.load(gpt3conf.pretrain_model))
+        gpt3.load_state_dict(torch.load(gpt3conf.pretrain_model),strict=False)
     gpt3.to(device)
     optimizer = torch.optim.AdamW(gpt3.parameters(), lr=gpt3conf.learning_rate)
 

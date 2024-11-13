@@ -99,10 +99,10 @@ class GPT3Block(nn.Module):
         **kwargs):
         super().__init__(**kwargs)
         self.layer_idx = layer_idx
-        self.ln1 = RMSNorm(gpt3conf.n_hidden_size,eps=gpt3conf.rms_norm_eps)
-        self.ln2 = RMSNorm(gpt3conf.n_hidden_size,eps=gpt3conf.rms_norm_eps)
+        self.ln1 = nn.RMSNorm(gpt3conf.n_hidden_size)
+        self.ln2 = nn.RMSNorm(gpt3conf.n_hidden_size)
         #"""
-        self.att_layer = SelfAttention2(
+        self.att_layer = SDPAttention(
             input_dim=gpt3conf.n_hidden_size,
             output_dim=gpt3conf.n_hidden_size,
             n_head=gpt3conf.n_head,
@@ -221,7 +221,7 @@ class GPT3(nn.Module):
         self.decoder_layer = nn.ModuleList(
             [GPT3Block(gpt3conf=self.gpt3conf,layer_idx=i,if_causal=True) for i in range(0,self.gpt3conf.n_attention_layer)]
             )
-        self.norm = RMSNorm(self.gpt3conf.n_hidden_size, eps=self.gpt3conf.rms_norm_eps)
+        self.norm = nn.RMSNorm(self.gpt3conf.n_hidden_size)
         self.logits = nn.Linear(
 
             in_features=self.gpt3conf.n_hidden_size,

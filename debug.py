@@ -158,7 +158,29 @@ def check_vob():
             vob_set.add(line)
     exit(0)
 
+def check_loss():
+    import torch.nn as nn
+    logit =  torch.load("./temp/logit.pt", weights_only=True).cpu()
+    label =  torch.load("./temp/label.pt", weights_only=True).cpu()
+    #logit = torch.Tensor([[1.0,3.0,4.0]])
+    #label = torch.Tensor([2]).type(dtype=torch.LongTensor)
+    print(f"logit.shape {logit.shape}")
+    print(f"label.shape {label.shape}")
+    print(label.unique())
+    print(logit.max(), logit.min())
+
+    # logit shape (16352, 20834)
+    # label shape (16352)
+    lossf = nn.CrossEntropyLoss(ignore_index=20833)
+
+    loss1 = lossf(logit,label)
+
+    print(loss1)
+    exit(0)
+
+
 if __name__ == "__main__":
+    check_loss()
     check_vob()
     test_shape()
     test_tensor()
