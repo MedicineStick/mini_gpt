@@ -179,7 +179,42 @@ def check_loss():
     exit(0)
 
 
+def check_model():
+    from model.gpt3 import GPT3,GPT3Config
+    global_conf = GPT3Config("./conf/gpt3_v3.yaml")
+    test_gpu = 5
+    if global_conf.if_gpu==1:
+        device = torch.device("cuda")
+        torch.cuda.set_device(test_gpu)
+    else:
+        device = torch.device("cpu")
+    model_path = "./pt/pt_32l_0_00025_AdamW_c4_v12/model_iter_epoch_0_batch_34000.pth"
+    global_conf.if_train = False
+    gpt3 = GPT3(global_conf,test_gpu)
+    gpt3.load_state_dict(torch.load(model_path),False)
+    gpt3.eval()
+    gpt3.to(device)
+
+    max_value = -float('inf')
+    min_value = float('inf')
+
+    # Iterate through the model's parameters
+    for param in gpt3.parameters():
+        # Flatten the parameter tensor to 1D for easy min/max computation
+        param_max = param.max().item()
+        param_min = param.min().item()
+        
+        # Update the global max and min values
+        max_value = max(max_value, param_max)
+        min_value = min(min_value, param_min)
+
+    print(f"Maximum value in the model: {max_value}")
+    print(f"Minimum value in the model: {min_value}")
+
+    exit(0)
+
 if __name__ == "__main__":
+    check_model()
     check_loss()
     check_vob()
     test_shape()

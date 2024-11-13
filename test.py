@@ -17,7 +17,7 @@ def decode():
         torch.cuda.set_device(test_gpu)
     else:
         device = torch.device("cpu")
-    model_path = "./pt/pt_32l_0_00025_AdamW_c4_v12/model_iter_epoch_0_batch_14000.pth"
+    model_path = "./pt/pt_32l_0_00025_AdamW_c4_v13/model_iter_epoch_0_batch_2000.pth"
     global_conf.if_train = False
     gpt3 = GPT3(global_conf,test_gpu)
     gpt3.load_state_dict(torch.load(model_path),False)
@@ -27,7 +27,7 @@ def decode():
     bbpe = bbpe_tokenizer([],0,0,0)
     bbpe.from_vocab_file('./vob/vocab.list.c4.v2',20833,True)
     prompt_list = ["The weather ",
-                   "Jobs ", 
+                   "Lisa yesterday invented a new game which is called table tennis with hand ", 
                    "Today  ",
                    "Warfare",
                    "Long bow ",

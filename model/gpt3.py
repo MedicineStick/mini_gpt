@@ -43,35 +43,9 @@ class GPT3Config():
         self.if_amp = bool(config["if_amp"])
         self.data_set_name = config["data_set_name"]
         self.log_file = config["log_file"]
+        self.clip_grad_norm = config["clip_grad_norm"]
+        self.if_clip_grad = config["if_clip_grad"]
 
-class RMSNorm(nn.Module):
-    def __init__(self, hidden_size, eps=1e-6):
-        super().__init__()
-        self.weight = nn.Parameter(torch.ones(hidden_size))
-        self.variance_epsilon = eps
-
-    def forward(self, hidden_states):
-        input_dtype = hidden_states.dtype
-        hidden_states = hidden_states.to(torch.float32)
-        variance = hidden_states.pow(2).mean(-1, keepdim=True)
-        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
-        return self.weight * hidden_states.to(input_dtype)
-
-
-class LayerNorm(nn.Module):
-    def __init__(self,normalized_shape:int,eps=1e-5, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self.eps = eps
-        self.a_2 = nn.Parameter(torch.ones(normalized_shape))
-        self.b_2 = nn.Parameter(torch.zeros(normalized_shape))
-
-    def forward(self,
-                tensor_in:torch.Tensor,
-                )->torch.Tensor:
-        mean = tensor_in.mean(dim=-1, keepdim=True)
-        std = tensor_in.std(dim=-1, keepdim=True, unbiased=False)
-        normalized_tensor = (tensor_in - mean) / (std + self.eps)
-        return self.a_2 * normalized_tensor + self.b_2
 
 class GPT3MLP(nn.Module):
     def __init__(self, gpt3conf:GPT3Config):
@@ -83,8 +57,6 @@ class GPT3MLP(nn.Module):
         self.up_proj = nn.Linear(self.hidden_size, self.n_intermediate_size, bias=gpt3conf.mlp_bias)
         self.down_proj = nn.Linear(self.n_intermediate_size, self.hidden_size, bias=gpt3conf.mlp_bias)
         self.act_fn = nn.SiLU()
-
-
 
     def forward(self, x:torch.Tensor ) -> torch.Tensor:
         down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
@@ -289,7 +261,7 @@ class GPT3(nn.Module):
             label_tensor = label_tensor[:,0:self.gpt3conf.max_token]
         else:
             pass
-
+        #with autocast(device_type='cuda', dtype=torch.float16, enabled=False):
         embedding,mask = self.wte(label_tensor)
         
         position_embeddings = self.lpe(label_tensor)

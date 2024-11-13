@@ -84,12 +84,8 @@ def get_train_objs(
     else:
         gpt3.load_state_dict(torch.load(gpt3conf.pretrain_model),strict=False)
     gpt3.to(device)
-    optimizer = torch.optim.AdamW(gpt3.parameters(), lr=gpt3conf.learning_rate)
-
-    if gpt3conf.if_amp:
-        gpt3, optimizer = amp.initialize(gpt3, optimizer, opt_level="O1")
-
-
+    optimizer = torch.optim.AdamW(gpt3.parameters(), lr=gpt3conf.learning_rate, eps=1e-8)
+    #optimizer = torch.optim.SGD(gpt3.parameters(), lr=gpt3conf.learning_rate, momentum=0.9, weight_decay=1e-4)
     return dataloader,gpt3,optimizer
 
 class trainer:
@@ -109,6 +105,7 @@ class trainer:
         self.device = torch.device(gpu_id)
         self.gpu_id = gpu_id
         self.logger = logger
+        self.scaler = torch.GradScaler()
 
         if len(self.gpt3conf.device_id)>1:
             self.model = DDP(
@@ -127,14 +124,16 @@ class trainer:
             source,
             ):
         self.optimizer.zero_grad()
-        loss = self.model(source)
+        with torch.autocast(device_type="cuda"):
+            loss = self.model(source)
+            self.scaler.scale(loss).backward()
+            if self.gpt3conf.if_clip_grad:
+                self.scaler.unscale_(self.optimizer)
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.gpt3conf.clip_grad_norm)
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+        
 
-        if self.gpt3conf.if_amp:
-            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                scaled_loss.backward()
-        else:
-            loss.backward()
-        self.optimizer.step()
         self.logger.info(f"[GPU{self.gpu_id}] Epoch {epoch} | Batch {batch_idx}/{len(self.train_data)} | Loss {loss.item():.4f}")
 
         if batch_idx%self.gpt3conf.save_per_batchs ==0:
