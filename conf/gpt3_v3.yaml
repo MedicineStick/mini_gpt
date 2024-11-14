@@ -2,7 +2,7 @@
 if_gpu: 1
 if_amp: 0
 data_set_name : "train_corpus_c4_v2"
-device_id: [6,7]
+device_id: [4,5,6,7]
 model_name: "gpt3"
 n_attention_layer: 32
 rms_norm_eps : 1e-6
@@ -17,17 +17,17 @@ max_gen_token: 150
 n_batch_size: 32
 n_epoch: 10
 learning_rate: 0.0005
+weight_decay : 0.05
 clip_grad_norm : 1.0
-if_clip_grad : 0
+if_clip_grad : 1
 resid_pdrop: 0.1
 attn_pdrop: 0.1
 save_per_batchs: 2000
 if_train: 1
 temperature: 1
 top_k: 4  
-output_path: "./pt/pt_32l_0_00025_AdamW_c4_v13"
-pretrain_model : ""
-wlist : "./data/vocab.list.c4.v2"
+output_path: "./pt/pt_32l_0_00025_AdamW_c4_v15"
+pretrain_model : "./pt/pt_32l_0_00025_AdamW_c4_v14/model_iter_epoch_0_batch_6000.pth"
+wlist : "./vob/vocab.list.c4.v2"
 wlist_size : 20833
-log_file : "./logs/train.log"
 

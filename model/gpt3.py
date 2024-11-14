@@ -42,9 +42,10 @@ class GPT3Config():
         self.rms_norm_eps   = config["rms_norm_eps"]
         self.if_amp = bool(config["if_amp"])
         self.data_set_name = config["data_set_name"]
-        self.log_file = config["log_file"]
+        self.log_file = self.output_path + '/train.log'
         self.clip_grad_norm = config["clip_grad_norm"]
         self.if_clip_grad = config["if_clip_grad"]
+        self.weight_decay = config["weight_decay"]
 
 
 class GPT3MLP(nn.Module):

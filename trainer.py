@@ -84,7 +84,12 @@ def get_train_objs(
     else:
         gpt3.load_state_dict(torch.load(gpt3conf.pretrain_model),strict=False)
     gpt3.to(device)
-    optimizer = torch.optim.AdamW(gpt3.parameters(), lr=gpt3conf.learning_rate, eps=1e-8)
+    optimizer = torch.optim.AdamW(
+        gpt3.parameters(),
+        lr=gpt3conf.learning_rate,
+        eps=1e-8,
+        weight_decay=gpt3conf.weight_decay
+        )
     #optimizer = torch.optim.SGD(gpt3.parameters(), lr=gpt3conf.learning_rate, momentum=0.9, weight_decay=1e-4)
     return dataloader,gpt3,optimizer
 
@@ -176,12 +181,6 @@ def train_multi_gpus(
         ):
 
     ddp_setup(rank,world_size)
-
-    if os.path.exists(global_conf.output_path):
-        pass
-    else:
-        os.makedirs(global_conf.output_path)
-
     dataloader,gpt3,optimizer = get_train_objs(global_conf,rank)
     
 
@@ -202,15 +201,8 @@ def train_single_gpu(
         global_conf:GPT3Config,
         logger:logging.RootLogger,
         ):
-
-    if os.path.exists(global_conf.output_path):
-        pass
-    else:
-        os.makedirs(global_conf.output_path)
-
-    dataloader,gpt3,optimizer = get_train_objs(global_conf,rank)
     
-
+    dataloader,gpt3,optimizer = get_train_objs(global_conf,rank)
     train_helper = trainer(
         model=gpt3,
         optimizer=optimizer,
@@ -224,6 +216,10 @@ def train_single_gpu(
 
 if __name__  == "__main__":
     global_conf = GPT3Config("./conf/gpt3_v3.yaml")
+    if os.path.exists(global_conf.output_path):
+        pass
+    else:
+        os.makedirs(global_conf.output_path)
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s | %(levelname)s | %(message)s')
