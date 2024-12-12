@@ -1,8 +1,8 @@
 
 if_gpu: 1
 if_amp: 0
-data_set_name : "train_corpus_c4_v2"
-device_id: [4,5,6,7]
+data_set_name : "train_corpus_wiki"
+device_id: [6,7]
 model_name: "gpt3"
 n_attention_layer: 32
 rms_norm_eps : 1e-6
@@ -26,8 +26,8 @@ save_per_batchs: 2000
 if_train: 1
 temperature: 1
 top_k: 4  
-output_path: "./pt/pt_32l_0_00025_AdamW_c4_v15"
-pretrain_model : "./pt/pt_32l_0_00025_AdamW_c4_v14/model_iter_epoch_0_batch_6000.pth"
+output_path: "./pt/pt_32l_0_00025_AdamW_wiki"
+pretrain_model : ""
 wlist : "./vob/vocab.list.c4.v2"
 wlist_size : 20833
 

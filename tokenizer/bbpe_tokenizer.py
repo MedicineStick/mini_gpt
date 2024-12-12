@@ -228,7 +228,6 @@ class bbpe_tokenizer:
             output_list = [int(self.vocab[self.bos_token_hex])]
             hex_list.append(self.bos_token_hex)
         hexs = self.BT._str_2_hexs(sent)
-        print(hexs)
         hexsq = deque(hexs)
         while len(hexsq)>0:
 
@@ -249,7 +248,6 @@ class bbpe_tokenizer:
             else:
                 output_list.append(self.vocab[''.join(ts)])
                 hex_list.append(''.join(ts))
-        print(hex_list)
         return output_list
     
     def decode(self,encode_list:list[int])->str:

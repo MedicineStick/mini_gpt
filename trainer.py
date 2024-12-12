@@ -1,6 +1,5 @@
 import torch
 from torch.utils.data import DataLoader
-from apex import amp
 import os
 from data_process.dataset_gpt3 import DatasetGPT3
 from model.gpt3 import GPT3,GPT3Config

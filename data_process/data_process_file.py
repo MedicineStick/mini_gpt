@@ -5,7 +5,7 @@ import random
 from collections import deque
 import json
 import csv
-from bbpe_tokenizer import bbpe_tokenizer,load_wiki_dict,load_wiki_dict_v2,load_wiki_dict_v3,byte_tranform
+from tokenizer.bbpe_tokenizer import bbpe_tokenizer,load_wiki_dict,load_wiki_dict_v2,load_wiki_dict_v3,byte_tranform
 
 from dataset_gpt3 import process_db
 
@@ -183,12 +183,34 @@ def encode_corpus_v4():
         spamwriter.writerow(['data'])
         for line in tqdm(corpus_lines):
             #line = bbpe.bos_token+line.strip()+bbpe.eos_token
-            str1list = bbpe.encode(line,False)
-            str1list.insert(0, bbpe.vocab[bbpe.bos_token_hex])
-            str1list.append(bbpe.vocab[bbpe.eos_token_hex])
-            tokens = ' '.join([ str(id) for id in str1list])
-            spamwriter.writerow([tokens])
+            if len(line) > 20:
+                str1list = bbpe.encode(line,False)
+                str1list.insert(0, bbpe.vocab[bbpe.bos_token_hex])
+                str1list.append(bbpe.vocab[bbpe.eos_token_hex])
+                tokens = ' '.join([ str(id) for id in str1list])
+                spamwriter.writerow([tokens])
 
+
+def encode_corpus_v5():
+    max_tokens = 20017
+    max_steps = 10
+    file = open("/home/tione/notebook/lskong2/data/realnews/wiki.txt",mode='r')
+    corpus_lines = file.readlines()
+    random.shuffle(corpus_lines)
+    bbpe = bbpe_tokenizer([],max_tokens,max_steps,0)
+    bbpe.from_vocab_file('./vob/vocab.list.c4.v2',max_tokens,True)
+    logging.info("encoding string...")
+    with open('./data/train_corpus_wiki.csv',mode='w', newline='') as f1:
+        spamwriter = csv.writer(f1)
+        spamwriter.writerow(['data'])
+        for line in tqdm(corpus_lines):
+            #line = bbpe.bos_token+line.strip()+bbpe.eos_token
+            if len(line) > 15:
+                str1list = bbpe.encode(line,False)
+                str1list.insert(0, bbpe.vocab[bbpe.bos_token_hex])
+                str1list.append(bbpe.vocab[bbpe.eos_token_hex])
+                tokens = ' '.join([ str(id) for id in str1list])
+                spamwriter.writerow([tokens])
 
 def new_vocab():
     BT =byte_tranform()
@@ -209,10 +231,14 @@ def new_vocab():
         
 
 if __name__  == "__main__":
+   #encode_corpus_v5()
+   #exit(0)
+
+
    #new_vocab()
    #encode_corpus_v3()
-   csv_file = "data/train_corpus_c4_v2.csv"
-   db_path = "data/train_corpus_c4_v2.db"
+   csv_file = "data/train_corpus_wiki.csv"
+   db_path = "data/train_corpus_wiki.db"
    process_db(csv_file,db_path)
    
    
