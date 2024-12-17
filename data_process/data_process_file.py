@@ -7,7 +7,7 @@ import json
 import csv
 from tokenizer.bbpe_tokenizer import bbpe_tokenizer,load_wiki_dict,load_wiki_dict_v2,load_wiki_dict_v3,byte_tranform
 
-from dataset_gpt3 import process_db
+from data_process.dataset_gpt3 import process_db
 
 
 
@@ -212,6 +212,24 @@ def encode_corpus_v5():
                 tokens = ' '.join([ str(id) for id in str1list])
                 spamwriter.writerow([tokens])
 
+
+def encode_corpus_v6():
+    import tiktoken
+    enc = tiktoken.get_encoding("o200k_base")
+    file = open("/home/tione/notebook/lskong2/data/realnews/wiki.txt",mode='r')
+    corpus_lines = file.readlines()
+    random.shuffle(corpus_lines)
+    logging.info("encoding string...")
+    with open('./data/train_corpus_wiki1.csv',mode='w', newline='') as f1:
+        spamwriter = csv.writer(f1)
+        spamwriter.writerow(['data'])
+        for line in tqdm(corpus_lines):
+            #line = bbpe.bos_token+line.strip()+bbpe.eos_token
+            if len(line) > 15:
+                str1list = enc.encode(line)
+                tokens = ' '.join([ str(id) for id in str1list])
+                spamwriter.writerow([tokens])
+
 def new_vocab():
     BT =byte_tranform()
     set1 = set()
@@ -231,8 +249,8 @@ def new_vocab():
         
 
 if __name__  == "__main__":
-   #encode_corpus_v5()
-   #exit(0)
+   encode_corpus_v6()
+   exit(0)
 
 
    #new_vocab()
