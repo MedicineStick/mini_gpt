@@ -230,6 +230,23 @@ def encode_corpus_v6():
                 tokens = ' '.join([ str(id) for id in str1list])
                 spamwriter.writerow([tokens])
 
+def encode_corpus_v7():
+    import tiktoken
+    enc = tiktoken.get_encoding("cl100k_base")
+    file = open("/home/tione/notebook/lskong2/data/realnews/wiki.txt",mode='r')
+    corpus_lines = file.readlines()
+    random.shuffle(corpus_lines)
+    logging.info("encoding string...")
+    with open('./data/train_corpus_wiki2.csv',mode='w', newline='') as f1:
+        spamwriter = csv.writer(f1)
+        spamwriter.writerow(['data'])
+        for line in tqdm(corpus_lines):
+            #line = bbpe.bos_token+line.strip()+bbpe.eos_token
+            if len(line) > 15:
+                str1list = enc.encode(line)
+                tokens = ' '.join([ str(id) for id in str1list])
+                spamwriter.writerow([tokens])
+
 def new_vocab():
     BT =byte_tranform()
     set1 = set()
@@ -249,14 +266,14 @@ def new_vocab():
         
 
 if __name__  == "__main__":
-   encode_corpus_v6()
-   exit(0)
+   #encode_corpus_v7()
+   #exit(0)
 
 
    #new_vocab()
    #encode_corpus_v3()
-   csv_file = "data/train_corpus_wiki.csv"
-   db_path = "data/train_corpus_wiki.db"
+   csv_file = "data/train_corpus_wiki2.csv"
+   db_path = "data/train_corpus_wiki2.db"
    process_db(csv_file,db_path)
    
    

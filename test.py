@@ -2,14 +2,13 @@
 from model.gpt3 import GPT3,GPT3Config
 import torch
 from tqdm import tqdm
-device = None
 from datasets import Dataset as Datasets
 from collections import Counter
 from tokenizer.bbpe_tokenizer import bbpe_tokenizer
-
+import os
 
 def decode():
-
+    device = None
     global_conf = GPT3Config("./conf/gpt3_v3.yaml")
     test_gpu = 3
     if global_conf.if_gpu==1:
@@ -17,7 +16,7 @@ def decode():
         torch.cuda.set_device(test_gpu)
     else:
         device = torch.device("cpu")
-    model_path = "./pt/pt_32l_0_00025_AdamW_wiki/model_iter_epoch_0_batch_12000.pth"
+    model_path = "./pt/pt_32l_0_00025_AdamW_wiki/model_iter_epoch_0_batch_250000.pth"
     global_conf.if_train = False
     gpt3 = GPT3(global_conf,test_gpu)
     gpt3.load_state_dict(torch.load(model_path),False)
@@ -29,12 +28,12 @@ def decode():
     prompt_list = ["The weather ",
                    "Lisa yesterday invented a new game which is called table tennis with hand ", 
                    "Today I am going to",
-                   "Warfare",
                    "Long bow ",
-                   "Food "
                    ]
     for prompt in prompt_list:
         token_list = bbpe.encode(prompt,False)
+        print("prompt : ",prompt)
+        print("prompt token_list: ",token_list)
         token_list = torch.tensor(token_list).unsqueeze(0).to(device)
         output = gpt3.inference(token_list,1)
 
@@ -43,9 +42,47 @@ def decode():
         for i in range(0,b):
             output_ = output[i].tolist()
             output_str = bbpe.decode(output_)
-            print(output_)
-            print(output_str+'\n')
-    
+            print("response : ",output_str)
+
+
+def decode1():
+    device = None
+    global_conf = GPT3Config("./conf/gpt3_v3.yaml")
+    test_gpu = 4
+    if global_conf.if_gpu==1:
+        device = torch.device("cuda")
+        torch.cuda.set_device(test_gpu)
+    else:
+        device = torch.device("cpu")
+    model_path = "./pt/pt_32l_0_00025_AdamW_wiki2/model_iter_epoch_0_batch_14000.pth"
+    global_conf.if_train = False
+    gpt3 = GPT3(global_conf,test_gpu)
+
+    # Load the model's state_dict (weights) into the model
+    gpt3.load_state_dict(torch.load(model_path, map_location=device))
+
+    # Move the model to the correct device (if necessary)
+    gpt3.to(device)
+    import tiktoken
+    enc = tiktoken.get_encoding("cl100k_base")
+    prompt_list = ["The weather ",
+                   "Lisa yesterday invented a new game which is called table tennis with hand ", 
+                   "Today I am going to",
+                   "Long bow ",
+                   ]
+    for prompt in prompt_list:
+        token_list = enc.encode(prompt)
+        print("prompt : ",prompt)
+        print("prompt token_list: ",token_list)
+        token_list = torch.tensor(token_list).unsqueeze(0).to(device)
+        output = gpt3.inference(token_list,1)
+
+        b,_ = output.shape
+
+        for i in range(0,b):
+            output_ = output[i].tolist()
+            output_str = enc.decode(output_)
+            print("response : ",output_str)
 
 def test_dataset():
     
@@ -81,9 +118,23 @@ def test_token():
     str2 = bbpe.decode(token_list)
     print(str2)
 
+
+def test_tiktoken():
+    import tiktoken
+    enc = tiktoken.get_encoding("o200k_base")
+    #assert enc.decode(enc.encode("hello world")) == "hello world"
+
+    print(enc.encode("Lisa yesterday invented a new game which is called table tennis with hand "))
+
+    # To get the tokeniser corresponding to a specific model in the OpenAI API:
+    enc = tiktoken.encoding_for_model("gpt-4o")
+
+    exit(0)
+
 if __name__ =="__main__":
 
+    #test_tiktoken()
 
     #test_token()
 
-    decode()
+    decode1()

@@ -4,7 +4,7 @@ from omegaconf import OmegaConf
 import math
 from model.attn import  SDPAttention,SelfAttention2
 
-
+from transformers.loss.loss_utils import ForCausalLMLoss
  # https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/modeling_llama.py
 from transformers.models.llama import modeling_llama
 
@@ -201,7 +201,7 @@ class GPT3(nn.Module):
             out_features=self.gpt3conf.vocab_size+1
             
             )
-        self.loss = nn.CrossEntropyLoss(ignore_index=gpt3conf.vocab_size) #20113
+        #self.loss = nn.CrossEntropyLoss(ignore_index=gpt3conf.vocab_size) #20113
 
         self.apply(self._init_weights)
 
@@ -271,10 +271,17 @@ class GPT3(nn.Module):
             embedding = module(embedding,mask)
         embedding = self.norm(embedding)
         logit = self.logits(embedding)
+        loss = ForCausalLMLoss(
+            logits=logit,
+            labels=label_tensor,
+            vocab_size=self.gpt3conf.vocab_size+1,
+            ignore_index=self.gpt3conf.vocab_size,
+        )
+        """
         logits_reshaped = logit[:,:-1,:].contiguous().view(-1, logit.shape[-1])  # Shape: (batch * length, vocab_size)
         labels_reshaped = label_tensor[:,1:].contiguous().view(-1).type(dtype=torch.LongTensor).to(self.device)
         loss = self.loss(logits_reshaped, labels_reshaped)
-
+        """
         return loss
 
 
