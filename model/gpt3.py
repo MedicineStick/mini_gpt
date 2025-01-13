@@ -74,6 +74,7 @@ class GPT3Block(nn.Module):
         self.layer_idx = layer_idx
         self.ln1 = nn.RMSNorm(gpt3conf.n_hidden_size)
         self.ln2 = nn.RMSNorm(gpt3conf.n_hidden_size)
+        self.lpe = LearnedPositionalEmbedding(gpt3conf.max_token,self.gpt3conf.n_hidden_size)
         #"""
         self.att_layer = SDPAttention(
             input_dim=gpt3conf.n_hidden_size,
@@ -89,11 +90,17 @@ class GPT3Block(nn.Module):
         #self.att_layer = nn.MultiheadAttention(n_hidden_size=gpt3conf.n_hidden_size, num_heads=gpt3conf.n_head, batch_first=True)
         self.mlp = GPT3MLP(gpt3conf)
         
-    def forward(self,x:torch.Tensor,mask):
+    def forward(
+            self,
+            x:torch.Tensor,
+            mask,
+            label_tensor,
+            ):
 
         residual = x
         res_x = self.ln1(x)
-        x =self.att_layer(res_x, res_x, res_x, mask)
+        position_embeddings = self.lpe(label_tensor)
+        x =self.att_layer(res_x+position_embeddings, res_x, res_x, mask)
 
         x = residual + x
         residual = x
@@ -190,7 +197,6 @@ class GPT3(nn.Module):
             embedding_dim=self.gpt3conf.n_hidden_size,
             padding_idx=self.gpt3conf.vocab_size
             )
-        self.lpe = LearnedPositionalEmbedding(self.gpt3conf.max_token,self.gpt3conf.n_hidden_size)
         self.decoder_layer = nn.ModuleList(
             [GPT3Block(gpt3conf=self.gpt3conf,layer_idx=i,if_causal=True) for i in range(0,self.gpt3conf.n_attention_layer)]
             )
@@ -264,11 +270,8 @@ class GPT3(nn.Module):
             pass
         #with autocast(device_type='cuda', dtype=torch.float16, enabled=False):
         embedding,mask = self.wte(label_tensor)
-        
-        position_embeddings = self.lpe(label_tensor)
-        embedding = embedding+position_embeddings
         for module in self.decoder_layer:
-            embedding = module(embedding,mask)
+            embedding = module(embedding,mask,label_tensor)
         embedding = self.norm(embedding)
         logit = self.logits(embedding)
         loss = ForCausalLMLoss(

@@ -54,7 +54,7 @@ def decode1():
         torch.cuda.set_device(test_gpu)
     else:
         device = torch.device("cpu")
-    model_path = "./pt/pt_32l_0_00025_AdamW_wiki2/model_iter_epoch_0_batch_14000.pth"
+    model_path = "./pt/pt_32l_0_00025_AdamW_wiki2/model_iter_epoch_2_batch_334000.pth"
     global_conf.if_train = False
     gpt3 = GPT3(global_conf,test_gpu)
 
